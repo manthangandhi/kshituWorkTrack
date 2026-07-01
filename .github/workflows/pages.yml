@@ -34,7 +34,7 @@ jobs:
           set -euo pipefail
           rm -rf site
           mkdir -p site
-          cp index.html styles.css app.js site/
+          cp index.html styles.css app.js config.js site/
           if [ -z "${{ secrets.APPS_SCRIPT_URL }}" ]; then echo 'APPS_SCRIPT_URL secret is missing' >&2; exit 1; fi
           if [ -z "${{ secrets.SHEET_URL }}" ]; then echo 'SHEET_URL secret is missing' >&2; exit 1; fi
           printf '%s' "${{ secrets.APPS_SCRIPT_URL }}" > site/apps-script-url.txt

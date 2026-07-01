@@ -2,13 +2,15 @@
 <html class="light" lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f5f8fc" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0747A6" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>WorkTrack</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <link
@@ -18,67 +20,70 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="ambient ambient-a"></div>
-    <div class="ambient ambient-b"></div>
-    <button id="rail-scrim" class="rail-scrim" type="button" aria-label="Close navigation" hidden></button>
-
     <div class="app-shell">
-      <aside class="side-rail">
+      <aside class="side-rail desktop-only-block" aria-label="Sidebar">
         <div class="rail-head">
           <div class="brand">
-            <div class="brand-mark">W</div>
+            <div class="brand-mark" aria-hidden="true">
+              <span class="material-symbols-outlined">assignment</span>
+            </div>
             <div>
               <p class="eyebrow">WorkTrack</p>
-              <h1>Task Ledger</h1>
+              <h1>Daily Ledger</h1>
             </div>
           </div>
-          <button id="close-menu-button" class="icon-button rail-close" type="button" aria-label="Close navigation">
-            <span class="material-symbols-outlined">close</span>
-          </button>
         </div>
 
         <nav class="rail-nav" aria-label="Primary">
           <button class="rail-link active" data-view-target="dashboard-view" type="button">
-            <span class="material-symbols-outlined">space_dashboard</span><span>Dashboard</span>
+            <span class="material-symbols-outlined" aria-hidden="true">space_dashboard</span><span>Dashboard</span>
           </button>
           <button class="rail-link" data-view-target="tasks-view" type="button">
-            <span class="material-symbols-outlined">task_alt</span><span>Tasks</span>
+            <span class="material-symbols-outlined" aria-hidden="true">edit_note</span><span>Tasks</span>
           </button>
           <button class="rail-link" data-view-target="reports-view" type="button">
-            <span class="material-symbols-outlined">analytics</span><span>Reports</span>
+            <span class="material-symbols-outlined" aria-hidden="true">bar_chart</span><span>Reports</span>
           </button>
           <button class="rail-link" data-view-target="history-view" type="button">
-            <span class="material-symbols-outlined">history</span><span>History</span>
+            <span class="material-symbols-outlined" aria-hidden="true">history</span><span>History</span>
           </button>
           <button class="rail-link" data-view-target="settings-view" type="button">
-            <span class="material-symbols-outlined">settings</span><span>Settings</span>
+            <span class="material-symbols-outlined" aria-hidden="true">tune</span><span>Settings</span>
           </button>
         </nav>
 
         <section class="rail-card">
-          <p class="eyebrow">Connection</p>
-          <div id="connection-pill" class="pill">Checking...</div>
-          <p class="muted tiny">No task data is stored in the browser.</p>
+          <p class="eyebrow">Status</p>
+          <div id="connection-pill" class="pill pill-neutral" role="status" aria-live="polite">Checking...</div>
+          <p class="muted tiny">All records sync to your Google Sheet.</p>
         </section>
       </aside>
 
       <div class="content-shell">
         <header class="topbar">
           <div class="topbar-left">
-            <button id="mobile-menu-button" class="icon-button" type="button" aria-label="Open navigation">
-              <span class="material-symbols-outlined">menu</span>
-            </button>
-            <div>
-              <p class="eyebrow" id="page-kicker">Dashboard</p>
+            <div class="mobile-brand mobile-only">
+              <div class="brand-mark brand-mark-sm" aria-hidden="true">
+                <span class="material-symbols-outlined">assignment</span>
+              </div>
+              <span class="mobile-brand-name">WorkTrack</span>
+            </div>
+            <div class="page-head">
+              <p class="eyebrow desktop-only" id="page-kicker">Dashboard</p>
               <h2 id="page-title">Overview</h2>
             </div>
           </div>
           <div class="topbar-actions">
-            <button id="sync-button" class="secondary-button" type="button">
-              <span class="material-symbols-outlined">sync</span><span>Sync</span>
+            <div id="connection-pill-mobile" class="pill pill-neutral mobile-only" role="status" aria-live="polite">Checking...</div>
+            <button id="sync-button" class="secondary-button sync-btn" type="button" aria-label="Sync with Google Sheet">
+              <span class="material-symbols-outlined sync-icon" aria-hidden="true">sync</span>
+              <span class="sync-label desktop-only">Sync</span>
             </button>
-            <button id="open-sheet-button" class="primary-button" type="button">
-              <span class="material-symbols-outlined">table_view</span><span>Open Sheet</span>
+            <button id="open-sheet-button" class="secondary-button desktop-only" type="button">
+              <span class="material-symbols-outlined" aria-hidden="true">table_view</span><span>Sheet</span>
+            </button>
+            <button id="quick-add-button" class="primary-button desktop-only" type="button" data-view-target="tasks-view" data-tasks-tab="entry">
+              <span class="material-symbols-outlined" aria-hidden="true">add</span><span>New task</span>
             </button>
           </div>
         </header>
@@ -87,91 +92,107 @@
           <section id="dashboard-view" class="view active">
             <div class="hero-grid">
               <article class="hero-card tall">
-                <div>
-                  <p class="eyebrow">Total tasks this week</p>
+                <div class="hero-copy">
+                  <p class="eyebrow">This week</p>
                   <h3 id="kpi-total">0</h3>
-                  <p id="kpi-delta" class="positive">0% vs last week</p>
+                  <p class="hero-sub">tasks logged</p>
+                  <p id="kpi-delta" class="delta neutral">— vs last week</p>
                 </div>
-                <div class="hero-art">
-                  <span class="material-symbols-outlined">account_balance_wallet</span>
+                <div class="hero-art" aria-hidden="true">
+                  <span class="material-symbols-outlined">trending_up</span>
                 </div>
               </article>
               <article class="metric-card accent-green">
-                <p>Completed</p>
-                <strong id="kpi-completed">0</strong>
+                <div class="metric-icon" aria-hidden="true"><span class="material-symbols-outlined">check_circle</span></div>
+                <div>
+                  <p>Completed</p>
+                  <strong id="kpi-completed">0</strong>
+                </div>
+              </article>
+              <article class="metric-card accent-amber">
+                <div class="metric-icon" aria-hidden="true"><span class="material-symbols-outlined">pending</span></div>
+                <div>
+                  <p>In progress</p>
+                  <strong id="kpi-progress">0</strong>
+                </div>
               </article>
               <article class="metric-card accent-red">
-                <p>Flagged</p>
-                <strong id="kpi-flagged">0</strong>
+                <div class="metric-icon" aria-hidden="true"><span class="material-symbols-outlined">error</span></div>
+                <div>
+                  <p>Blocked</p>
+                  <strong id="kpi-blocked">0</strong>
+                </div>
               </article>
             </div>
 
             <section class="panel">
               <div class="section-head">
                 <div>
-                  <p class="eyebrow">Analytics</p>
-                  <h3>Daily, weekly, monthly</h3>
+                  <p class="eyebrow">Activity</p>
+                  <h3>Task volume</h3>
                 </div>
-                <span id="analytics-range-label" class="muted">This week</span>
+                <span id="analytics-range-label" class="range-chip">This week</span>
               </div>
               <div class="segmented" role="tablist" aria-label="Analytics range">
-                <button class="segment active" data-analytics-range="daily" type="button">Daily</button>
-                <button class="segment" data-analytics-range="weekly" type="button">Weekly</button>
-                <button class="segment" data-analytics-range="monthly" type="button">Monthly</button>
+                <button class="segment" data-analytics-range="daily" type="button" role="tab" aria-selected="false">Daily</button>
+                <button class="segment active" data-analytics-range="weekly" type="button" role="tab" aria-selected="true">Weekly</button>
+                <button class="segment" data-analytics-range="monthly" type="button" role="tab" aria-selected="false">Monthly</button>
               </div>
               <div class="chart-shell">
-                <div id="analytics-chart" class="chart"></div>
+                <div id="analytics-chart" class="chart" role="img" aria-label="Task volume chart"></div>
               </div>
             </section>
 
             <section class="panel">
               <div class="section-head">
                 <div>
-                  <p class="eyebrow">Recent task log</p>
-                  <h3>Latest updates</h3>
+                  <p class="eyebrow">Recent</p>
+                  <h3>Latest entries</h3>
                 </div>
-                <button class="text-button" data-view-target="tasks-view" type="button">View all</button>
+                <button class="text-button" data-view-target="tasks-view" data-tasks-tab="list" type="button">View all</button>
               </div>
               <div id="dashboard-recent-list" class="list-stack"></div>
-            </section>
-
-            <section class="action-row">
-              <button class="primary-button wide" data-view-target="tasks-view" type="button">
-                <span class="material-symbols-outlined">add_task</span><span>Add task</span>
-              </button>
-              <button class="secondary-button wide" data-view-target="reports-view" type="button">
-                <span class="material-symbols-outlined">bar_chart</span><span>Open reports</span>
-              </button>
             </section>
           </section>
 
           <section id="tasks-view" class="view">
-            <section class="panel split-layout">
-              <div class="form-shell">
+            <div class="tasks-toolbar">
+              <div class="segmented tasks-tabs" role="tablist" aria-label="Tasks panel">
+                <button class="segment active" data-tasks-tab="entry" type="button" role="tab" aria-selected="true">
+                  <span class="material-symbols-outlined" aria-hidden="true">edit</span><span>New entry</span>
+                </button>
+                <button class="segment" data-tasks-tab="list" type="button" role="tab" aria-selected="false">
+                  <span class="material-symbols-outlined" aria-hidden="true">list</span><span>All tasks</span>
+                </button>
+              </div>
+            </div>
+
+            <div id="tasks-entry-panel" class="tasks-panel active">
+              <section class="panel form-panel">
                 <div class="section-head compact">
                   <div>
-                    <p class="eyebrow">New entry</p>
-                    <h3>Task details</h3>
+                    <p class="eyebrow" id="form-mode-label">New entry</p>
+                    <h3 id="form-title">Log a task</h3>
                   </div>
-                  <button id="reset-button" class="ghost-button" type="button">Clear form</button>
+                  <button id="reset-button" class="ghost-button" type="button">Clear</button>
                 </div>
                 <form id="task-form" novalidate>
                   <input type="hidden" id="task-id" />
-                  <label>
-                    <span>Date</span>
-                    <input id="task-date" type="date" required />
-                  </label>
-                  <label>
-                    <span>Task</span>
-                    <input id="task-title" type="text" placeholder="Example: Reconcile payments queue" required maxlength="120" />
-                  </label>
-                  <label>
-                    <span>Details</span>
-                    <textarea id="task-details" rows="4" maxlength="1000" placeholder="Short but complete description"></textarea>
-                  </label>
-                  <div class="grid-2">
-                    <label>
-                      <span>Status</span>
+                  <div class="form-grid">
+                    <label class="field">
+                      <span>Date <abbr title="required" aria-label="required">*</abbr></span>
+                      <input id="task-date" type="date" required />
+                    </label>
+                    <label class="field field-wide">
+                      <span>Task <abbr title="required" aria-label="required">*</abbr></span>
+                      <input id="task-title" type="text" placeholder="e.g. Reconcile payments queue" required maxlength="120" autocomplete="off" />
+                    </label>
+                    <label class="field field-wide">
+                      <span>Details</span>
+                      <textarea id="task-details" rows="3" maxlength="1000" placeholder="What was done or needs doing"></textarea>
+                    </label>
+                    <label class="field">
+                      <span>Status <abbr title="required" aria-label="required">*</abbr></span>
                       <select id="task-status" required>
                         <option value="Planned">Planned</option>
                         <option value="In Progress">In Progress</option>
@@ -179,38 +200,54 @@
                         <option value="Done">Done</option>
                       </select>
                     </label>
-                    <label>
+                    <label class="field field-wide">
                       <span>Comments</span>
-                      <textarea id="task-comments" rows="4" maxlength="1000" placeholder="Risks, blockers, or follow-up notes"></textarea>
+                      <textarea id="task-comments" rows="2" maxlength="1000" placeholder="Risks, blockers, or follow-up notes"></textarea>
                     </label>
                   </div>
-                  <div class="form-actions">
-                    <button id="save-button" class="primary-button" type="submit">Save task</button>
+                  <div class="form-actions sticky-actions">
+                    <button id="save-button" class="primary-button full-width" type="submit">
+                      <span class="material-symbols-outlined" aria-hidden="true">save</span>
+                      <span id="save-button-label">Save task</span>
+                    </button>
                   </div>
                 </form>
-              </div>
+              </section>
+            </div>
 
-              <div class="list-shell">
+            <div id="tasks-list-panel" class="tasks-panel">
+              <section class="panel list-panel">
                 <div class="section-head compact">
                   <div>
-                    <p class="eyebrow">Task list</p>
-                    <h3>Filter and review</h3>
+                    <p class="eyebrow">Browse</p>
+                    <h3>Task list</h3>
                   </div>
+                  <span id="task-count-label" class="range-chip">0 tasks</span>
                 </div>
                 <div class="filter-row">
-                  <input id="search-input" type="search" placeholder="Search task or comments" />
-                  <input id="filter-date" type="date" />
-                  <select id="filter-status">
-                    <option value="">All statuses</option>
-                    <option value="Planned">Planned</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Blocked">Blocked</option>
-                    <option value="Done">Done</option>
-                  </select>
+                  <label class="filter-field search-field">
+                    <span class="sr-only">Search</span>
+                    <span class="material-symbols-outlined filter-icon" aria-hidden="true">search</span>
+                    <input id="search-input" type="search" placeholder="Search tasks" autocomplete="off" />
+                  </label>
+                  <label class="filter-field">
+                    <span class="sr-only">Filter by date</span>
+                    <input id="filter-date" type="date" />
+                  </label>
+                  <label class="filter-field">
+                    <span class="sr-only">Filter by status</span>
+                    <select id="filter-status">
+                      <option value="">All statuses</option>
+                      <option value="Planned">Planned</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Blocked">Blocked</option>
+                      <option value="Done">Done</option>
+                    </select>
+                  </label>
                 </div>
                 <div id="task-list" class="task-list"></div>
-              </div>
-            </section>
+              </section>
+            </div>
           </section>
 
           <section id="reports-view" class="view">
@@ -218,26 +255,31 @@
               <div class="section-head">
                 <div>
                   <p class="eyebrow">Reports</p>
-                  <h3>Performance snapshot</h3>
+                  <h3>Period summary</h3>
                 </div>
-                <span id="report-summary-short" class="muted">No data yet</span>
+                <span id="report-summary-short" class="range-chip">No data yet</span>
+              </div>
+              <div class="segmented report-range-tabs" role="tablist" aria-label="Report range">
+                <button class="segment" data-report-range="daily" type="button" role="tab" aria-selected="false">Today</button>
+                <button class="segment active" data-report-range="weekly" type="button" role="tab" aria-selected="true">This week</button>
+                <button class="segment" data-report-range="monthly" type="button" role="tab" aria-selected="false">This month</button>
               </div>
               <div class="report-metrics">
-                <article class="report-card">
-                  <span>Completed</span>
-                  <strong id="report-completed">0</strong>
+                <article class="report-card status-done">
+                  <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+                  <div><span>Completed</span><strong id="report-completed">0</strong></div>
                 </article>
-                <article class="report-card">
-                  <span>In progress</span>
-                  <strong id="report-progress">0</strong>
+                <article class="report-card status-progress">
+                  <span class="material-symbols-outlined" aria-hidden="true">pending</span>
+                  <div><span>In progress</span><strong id="report-progress">0</strong></div>
                 </article>
-                <article class="report-card">
-                  <span>Blocked</span>
-                  <strong id="report-blocked">0</strong>
+                <article class="report-card status-blocked">
+                  <span class="material-symbols-outlined" aria-hidden="true">error</span>
+                  <div><span>Blocked</span><strong id="report-blocked">0</strong></div>
                 </article>
-                <article class="report-card">
-                  <span>Planned</span>
-                  <strong id="report-planned">0</strong>
+                <article class="report-card status-planned">
+                  <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
+                  <div><span>Planned</span><strong id="report-planned">0</strong></div>
                 </article>
               </div>
               <div id="report-summary" class="summary-box"></div>
@@ -246,17 +288,23 @@
             <section class="panel">
               <div class="section-head">
                 <div>
-                  <p class="eyebrow">Trend</p>
-                  <h3>Task volume by period</h3>
+                  <p class="eyebrow">Period log</p>
+                  <h3 id="report-period-title">Tasks this week</h3>
                 </div>
-                <div class="segmented compact">
-                  <button class="segment active" data-report-range="daily" type="button">Daily</button>
-                  <button class="segment" data-report-range="weekly" type="button">Weekly</button>
-                  <button class="segment" data-report-range="monthly" type="button">Monthly</button>
+                <span id="report-period-count" class="range-chip">0 tasks</span>
+              </div>
+              <div id="report-task-list" class="list-stack"></div>
+            </section>
+
+            <section class="panel">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Trend</p>
+                  <h3>Volume over time</h3>
                 </div>
               </div>
               <div class="chart-shell chart-large">
-                <div id="report-chart" class="chart"></div>
+                <div id="report-chart" class="chart" role="img" aria-label="Report trend chart"></div>
               </div>
             </section>
           </section>
@@ -266,42 +314,55 @@
               <div class="section-head">
                 <div>
                   <p class="eyebrow">Audit trail</p>
-                  <h3>Recent changes</h3>
+                  <h3>Change history</h3>
                 </div>
-                <span class="muted">Synced from Google Sheets</span>
+                <span class="range-chip">From Google Sheets</span>
               </div>
               <div id="history-list" class="timeline"></div>
             </section>
           </section>
 
           <section id="settings-view" class="view">
-            <section class="panel split-layout settings-layout">
-              <div class="form-shell">
-                <div class="section-head compact">
-                  <div>
-                    <p class="eyebrow">Settings</p>
-                    <h3>Managed connection</h3>
-                  </div>
-                </div>
-                <div class="panel-subcard">
-                  <p class="eyebrow">Backend only</p>
-                  <p class="muted">
-                    Connection details are injected during GitHub Pages deploy. Your wife does not need to enter anything on her device.
-                  </p>
-                  <div class="form-actions">
-                    <button id="open-sheet-link" class="secondary-button" type="button">Open sheet</button>
-                  </div>
+            <section class="panel">
+              <div class="section-head compact">
+                <div>
+                  <p class="eyebrow">Settings</p>
+                  <h3>Your workspace</h3>
                 </div>
               </div>
-
-              <div class="panel-subcard">
-                <p class="eyebrow">How it works</p>
-                <ul class="checklist">
-                  <li>Task records are read from and written to Google Sheets only.</li>
-                  <li>No task data or connection settings are stored in the browser.</li>
-                  <li>Set <code>APPS_SCRIPT_URL</code> and <code>SHEET_URL</code> in GitHub Actions secrets, then redeploy Pages.</li>
-                  <li>The Apps Script web app automatically creates the required sheets.</li>
-                </ul>
+              <div class="settings-grid">
+                <article class="settings-card">
+                  <div class="settings-card-icon" aria-hidden="true">
+                    <span class="material-symbols-outlined">cloud_done</span>
+                  </div>
+                  <div>
+                    <h4>Google Sheet</h4>
+                    <p class="muted">Tasks are saved directly to your shared spreadsheet. Nothing is stored on this device.</p>
+                    <div class="form-actions">
+                      <button id="open-sheet-link" class="secondary-button" type="button">
+                        <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span>
+                        <span>Open spreadsheet</span>
+                      </button>
+                    </div>
+                  </div>
+                </article>
+                <article class="settings-card">
+                  <div class="settings-card-icon" aria-hidden="true">
+                    <span class="material-symbols-outlined">phone_iphone</span>
+                  </div>
+                  <div>
+                    <h4>Add to home screen</h4>
+                    <p class="muted">For the best experience on your phone, tap Share → Add to Home Screen in Safari or Chrome.</p>
+                  </div>
+                </article>
+                <details class="settings-advanced">
+                  <summary>Technical details</summary>
+                  <ul class="checklist">
+                    <li>Connection URLs are configured at deploy time — no setup needed on your phone.</li>
+                    <li>The Apps Script backend creates required sheets automatically.</li>
+                    <li>Repository admins set <code>APPS_SCRIPT_URL</code> and <code>SHEET_URL</code> in GitHub Actions secrets.</li>
+                  </ul>
+                </details>
               </div>
             </section>
           </section>
@@ -311,23 +372,43 @@
 
     <nav class="mobile-nav" aria-label="Primary mobile navigation">
       <button class="mobile-link active" data-view-target="dashboard-view" type="button">
-        <span class="material-symbols-outlined">space_dashboard</span><span>Home</span>
+        <span class="material-symbols-outlined" aria-hidden="true">space_dashboard</span><span>Home</span>
       </button>
-      <button class="mobile-link" data-view-target="tasks-view" type="button">
-        <span class="material-symbols-outlined">task_alt</span><span>Tasks</span>
+      <button class="mobile-link" data-view-target="tasks-view" type="button" data-tasks-tab="entry">
+        <span class="material-symbols-outlined" aria-hidden="true">edit_note</span><span>Tasks</span>
       </button>
       <button class="mobile-link" data-view-target="reports-view" type="button">
-        <span class="material-symbols-outlined">analytics</span><span>Reports</span>
+        <span class="material-symbols-outlined" aria-hidden="true">bar_chart</span><span>Reports</span>
       </button>
       <button class="mobile-link" data-view-target="history-view" type="button">
-        <span class="material-symbols-outlined">history</span><span>History</span>
+        <span class="material-symbols-outlined" aria-hidden="true">history</span><span>History</span>
       </button>
       <button class="mobile-link" data-view-target="settings-view" type="button">
-        <span class="material-symbols-outlined">settings</span><span>Settings</span>
+        <span class="material-symbols-outlined" aria-hidden="true">settings</span><span>Settings</span>
       </button>
     </nav>
 
-    <div id="toast" class="toast" hidden></div>
+    <button id="fab-add" class="fab" type="button" aria-label="Add new task" data-view-target="tasks-view" data-tasks-tab="entry">
+      <span class="material-symbols-outlined" aria-hidden="true">add</span>
+    </button>
+
+    <div id="delete-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+      <div class="modal-backdrop" data-dismiss="modal"></div>
+      <div class="modal-card">
+        <div class="modal-icon danger" aria-hidden="true">
+          <span class="material-symbols-outlined">delete</span>
+        </div>
+        <h3 id="delete-modal-title">Delete this task?</h3>
+        <p id="delete-modal-body" class="muted">This action cannot be undone.</p>
+        <div class="modal-actions">
+          <button id="delete-cancel" class="secondary-button" type="button">Cancel</button>
+          <button id="delete-confirm" class="primary-button danger-button" type="button">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
+    <script src="./config.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

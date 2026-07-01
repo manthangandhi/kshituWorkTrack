@@ -6,10 +6,10 @@ const CONFIG_FILES = {
 const STATUS_OPTIONS = ['Planned', 'In Progress', 'Blocked', 'Done'];
 const VIEW_LABELS = {
   'dashboard-view': { kicker: 'Dashboard', title: 'Overview' },
-  'tasks-view': { kicker: 'Tasks', title: 'Task entry and review' },
-  'reports-view': { kicker: 'Reports', title: 'Analytics' },
+  'tasks-view': { kicker: 'Tasks', title: 'Log and review' },
+  'reports-view': { kicker: 'Reports', title: 'Performance' },
   'history-view': { kicker: 'History', title: 'Audit trail' },
-  'settings-view': { kicker: 'Settings', title: 'Sheet connection' },
+  'settings-view': { kicker: 'Settings', title: 'Workspace' },
 };
 
 const state = {
@@ -17,21 +17,23 @@ const state = {
   apiUrl: '',
   sheetUrl: '',
   view: 'dashboard-view',
+  tasksTab: 'entry',
   analyticsRange: 'weekly',
   reportRange: 'weekly',
   tasks: [],
   history: [],
   summary: null,
   editingId: null,
+  pendingDeleteId: null,
 };
 
 const nodes = {
   connectionPill: document.getElementById('connection-pill'),
+  connectionPillMobile: document.getElementById('connection-pill-mobile'),
   syncButton: document.getElementById('sync-button'),
   openSheetButton: document.getElementById('open-sheet-button'),
-  mobileMenuButton: document.getElementById('mobile-menu-button'),
-  closeMenuButton: document.getElementById('close-menu-button'),
-  railScrim: document.getElementById('rail-scrim'),
+  quickAddButton: document.getElementById('quick-add-button'),
+  fabAdd: document.getElementById('fab-add'),
   pageKicker: document.getElementById('page-kicker'),
   pageTitle: document.getElementById('page-title'),
   taskForm: document.getElementById('task-form'),
@@ -43,27 +45,41 @@ const nodes = {
   taskComments: document.getElementById('task-comments'),
   resetButton: document.getElementById('reset-button'),
   saveButton: document.getElementById('save-button'),
+  saveButtonLabel: document.getElementById('save-button-label'),
+  formModeLabel: document.getElementById('form-mode-label'),
+  formTitle: document.getElementById('form-title'),
   searchInput: document.getElementById('search-input'),
   filterDate: document.getElementById('filter-date'),
   filterStatus: document.getElementById('filter-status'),
   taskList: document.getElementById('task-list'),
+  taskCountLabel: document.getElementById('task-count-label'),
   dashboardRecentList: document.getElementById('dashboard-recent-list'),
   analyticsChart: document.getElementById('analytics-chart'),
   reportChart: document.getElementById('report-chart'),
   analyticsRangeLabel: document.getElementById('analytics-range-label'),
   reportSummaryShort: document.getElementById('report-summary-short'),
   reportSummary: document.getElementById('report-summary'),
+  reportPeriodTitle: document.getElementById('report-period-title'),
+  reportPeriodCount: document.getElementById('report-period-count'),
+  reportTaskList: document.getElementById('report-task-list'),
   historyList: document.getElementById('history-list'),
   openSheetLink: document.getElementById('open-sheet-link'),
   kpiTotal: document.getElementById('kpi-total'),
   kpiDelta: document.getElementById('kpi-delta'),
   kpiCompleted: document.getElementById('kpi-completed'),
-  kpiFlagged: document.getElementById('kpi-flagged'),
+  kpiProgress: document.getElementById('kpi-progress'),
+  kpiBlocked: document.getElementById('kpi-blocked'),
   reportCompleted: document.getElementById('report-completed'),
   reportProgress: document.getElementById('report-progress'),
   reportBlocked: document.getElementById('report-blocked'),
   reportPlanned: document.getElementById('report-planned'),
   toast: document.getElementById('toast'),
+  deleteModal: document.getElementById('delete-modal'),
+  deleteModalBody: document.getElementById('delete-modal-body'),
+  deleteCancel: document.getElementById('delete-cancel'),
+  deleteConfirm: document.getElementById('delete-confirm'),
+  tasksEntryPanel: document.getElementById('tasks-entry-panel'),
+  tasksListPanel: document.getElementById('tasks-list-panel'),
 };
 
 function uid() {
@@ -72,8 +88,17 @@ function uid() {
 }
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return toLocalISO(new Date());
 }
+
+function toLocalISO(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+let isBusy = false;
 
 function escapeText(value) {
   return String(value ?? '')
@@ -140,7 +165,7 @@ function getSheetUrl() {
   return String(state.sheetUrl || '').trim();
 }
 
-function setToast(message, timeout = 2400) {
+function setToast(message, timeout = 2800) {
   nodes.toast.textContent = message;
   nodes.toast.hidden = false;
   window.clearTimeout(setToast.timer);
@@ -149,8 +174,19 @@ function setToast(message, timeout = 2400) {
   }, timeout);
 }
 
-function setConnectionLabel(text) {
-  nodes.connectionPill.textContent = text;
+function setConnectionState(status) {
+  const map = {
+    checking: { text: 'Checking...', className: 'pill pill-neutral' },
+    connecting: { text: 'Connecting...', className: 'pill pill-loading' },
+    synced: { text: 'Synced', className: 'pill pill-synced' },
+    error: { text: 'Unavailable', className: 'pill pill-error' },
+    waiting: { text: 'Not configured', className: 'pill pill-neutral' },
+  };
+  const entry = map[status] || map.checking;
+  [nodes.connectionPill, nodes.connectionPillMobile].filter(Boolean).forEach((pill) => {
+    pill.textContent = entry.text;
+    pill.className = entry.className + (pill.id === 'connection-pill-mobile' ? ' mobile-only' : '');
+  });
 }
 
 function normalizeTask(task) {
@@ -189,7 +225,7 @@ function statusClass(status) {
 function requestEndpoint(action, method = 'GET', payload = null) {
   const apiUrl = getApiUrl();
   if (!apiUrl) {
-    throw new Error('Apps Script URL not configured.');
+    throw new Error('Connection not configured. Ask your admin to deploy the app.');
   }
 
   if (method === 'GET') {
@@ -210,7 +246,7 @@ async function fetchBootstrap() {
   const res = await requestEndpoint('bootstrap');
   const data = await res.json();
   if (!res.ok || data.ok === false) {
-    throw new Error(data.error || `Failed to load data (${res.status})`);
+    throw new Error(data.error || `Could not load data (${res.status})`);
   }
   return data;
 }
@@ -219,11 +255,12 @@ async function saveRemoteTask(task) {
   const res = await requestEndpoint('save', 'POST', task);
   const data = await res.json();
   if (!res.ok || data.ok === false) {
-    throw new Error(data.error || `Failed to save task (${res.status})`);
+    throw new Error(data.error || `Could not save task (${res.status})`);
   }
   return {
     task: normalizeTask(data.task || task),
     history: Array.isArray(data.history) ? data.history.map(normalizeHistory) : [],
+    summary: data.summary || null,
   };
 }
 
@@ -231,9 +268,49 @@ async function deleteRemoteTask(id) {
   const res = await requestEndpoint('delete', 'POST', { id });
   const data = await res.json();
   if (!res.ok || data.ok === false) {
-    throw new Error(data.error || `Failed to delete task (${res.status})`);
+    throw new Error(data.error || `Could not delete task (${res.status})`);
   }
   return Array.isArray(data.history) ? data.history.map(normalizeHistory) : [];
+}
+
+function getRangeBounds(range) {
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+
+  if (range === 'daily') {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    return { start, end, label: 'Today' };
+  }
+
+  if (range === 'weekly') {
+    const start = new Date();
+    const weekday = start.getDay() || 7;
+    start.setDate(start.getDate() - weekday + 1);
+    start.setHours(0, 0, 0, 0);
+    return { start, end, label: 'This week' };
+  }
+
+  const start = new Date(end.getFullYear(), end.getMonth(), 1);
+  start.setHours(0, 0, 0, 0);
+  return { start, end, label: 'This month' };
+}
+
+function filterTasksByRange(tasks, range) {
+  const { start, end } = getRangeBounds(range);
+  return tasks.filter((task) => {
+    const date = toDate(task.date);
+    return date && date >= start && date <= end;
+  });
+}
+
+function countByStatus(tasks) {
+  return {
+    completed: tasks.filter((task) => task.status === 'Done').length,
+    blocked: tasks.filter((task) => task.status === 'Blocked').length,
+    in_progress: tasks.filter((task) => task.status === 'In Progress').length,
+    planned: tasks.filter((task) => task.status === 'Planned').length,
+  };
 }
 
 function buildSummary(tasks) {
@@ -241,32 +318,52 @@ function buildSummary(tasks) {
   const weekStart = new Date(now);
   const weekday = weekStart.getDay() || 7;
   weekStart.setDate(weekStart.getDate() - weekday + 1);
+  weekStart.setHours(0, 0, 0, 0);
   const lastWeekStart = new Date(weekStart);
   lastWeekStart.setDate(lastWeekStart.getDate() - 7);
   const lastWeekEnd = new Date(weekStart);
-  const weekTasks = tasks.filter((task) => {
-    const date = toDate(task.date);
-    return date && date >= weekStart && date <= now;
-  });
+  const weekTasks = filterTasksByRange(tasks, 'weekly');
   const previousWeekTasks = tasks.filter((task) => {
     const date = toDate(task.date);
     return date && date >= lastWeekStart && date < lastWeekEnd;
   });
-  const blocked = tasks.filter((task) => task.status === 'Blocked').length;
-  const completed = tasks.filter((task) => task.status === 'Done').length;
-  const inProgress = tasks.filter((task) => task.status === 'In Progress').length;
-  const planned = tasks.filter((task) => task.status === 'Planned').length;
+  const counts = countByStatus(tasks);
   const deltaBase = previousWeekTasks.length || 1;
   const delta = Math.round(((weekTasks.length - previousWeekTasks.length) / deltaBase) * 100);
   return {
     totals: {
       total: tasks.length,
       weekly_total: weekTasks.length,
+      completed: counts.completed,
+      blocked: counts.blocked,
+      in_progress: counts.in_progress,
+      planned: counts.planned,
+      delta,
+    },
+    by_status: counts,
+  };
+}
+
+function normalizeSummary(summary, tasks) {
+  const fallback = buildSummary(tasks);
+  if (!summary) return fallback;
+
+  const totals = summary.totals || {};
+  const byStatus = summary.by_status || {};
+  const completed = totals.completed ?? byStatus.Done ?? byStatus.completed ?? fallback.totals.completed;
+  const blocked = totals.blocked ?? byStatus.Blocked ?? byStatus.blocked ?? fallback.totals.blocked;
+  const inProgress = totals.in_progress ?? byStatus['In Progress'] ?? byStatus.in_progress ?? fallback.totals.in_progress;
+  const planned = totals.planned ?? byStatus.Planned ?? byStatus.planned ?? fallback.totals.planned;
+
+  return {
+    totals: {
+      total: totals.total ?? fallback.totals.total,
+      weekly_total: totals.weekly_total ?? fallback.totals.weekly_total,
       completed,
       blocked,
       in_progress: inProgress,
       planned,
-      delta,
+      delta: totals.delta ?? fallback.totals.delta,
     },
     by_status: { completed, blocked, in_progress: inProgress, planned },
   };
@@ -313,9 +410,9 @@ function chartSeries(tasks, range) {
   const days = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(monday);
     date.setDate(monday.getDate() + index);
-    const iso = date.toISOString().slice(0, 10);
+    const iso = toLocalISO(date);
     return {
-      label: date.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 3).toUpperCase(),
+      label: date.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 3),
       value: tasks.filter((task) => task.date === iso).length,
     };
   });
@@ -325,12 +422,13 @@ function chartSeries(tasks, range) {
 function renderChart(container, series) {
   if (!container) return;
   const max = Math.max(1, ...series.map((item) => item.value));
-  container.style.gridTemplateColumns = `repeat(${series.length}, minmax(0, 1fr))`;
+  container.style.gridTemplateColumns = `repeat(${series.length}, minmax(36px, 1fr))`;
   container.innerHTML = series
     .map((item) => {
-      const height = Math.max(18, Math.round((item.value / max) * 100));
+      const height = Math.max(8, Math.round((item.value / max) * 100));
       return `
         <div class="bar">
+          <div class="bar-value">${item.value || ''}</div>
           <div class="bar-track">
             <div class="bar-fill" style="height:${height}%"></div>
           </div>
@@ -339,6 +437,16 @@ function renderChart(container, series) {
       `;
     })
     .join('');
+}
+
+function renderEmptyState(icon, title, message) {
+  return `
+    <article class="empty-state">
+      <span class="material-symbols-outlined" aria-hidden="true">${escapeText(icon)}</span>
+      <p class="task-title">${escapeText(title)}</p>
+      <p class="muted">${escapeText(message)}</p>
+    </article>
+  `;
 }
 
 function renderTaskCard(task, includeActions = true) {
@@ -354,8 +462,8 @@ function renderTaskCard(task, includeActions = true) {
         </div>
         <span class="status-pill ${statusClass(task.status)}">${escapeText(task.status)}</span>
       </div>
-      <p class="muted">${escapeText(task.details || 'No details added')}</p>
-      ${task.comments ? `<p class="muted"><strong>Comments:</strong> ${escapeText(task.comments)}</p>` : ''}
+      ${task.details ? `<p class="muted">${escapeText(task.details)}</p>` : ''}
+      ${task.comments ? `<p class="muted"><strong>Notes:</strong> ${escapeText(task.comments)}</p>` : ''}
       ${includeActions ? `
         <div class="task-actions">
           <button class="ghost-button" data-action="edit" data-id="${escapeText(task.id)}" type="button">Edit</button>
@@ -367,10 +475,10 @@ function renderTaskCard(task, includeActions = true) {
 }
 
 function renderRecent(tasks) {
-  const subset = tasks.slice(0, 3);
+  const subset = tasks.slice(0, 5);
   nodes.dashboardRecentList.innerHTML = subset.length
     ? subset.map((task) => renderTaskCard(task, false)).join('')
-    : `<article class="task-row"><p class="task-title">No tasks yet</p><p class="muted">Connect your sheet and start logging work.</p></article>`;
+    : renderEmptyState('edit_note', 'No tasks yet', 'Tap + to log your first task for today.');
 }
 
 function renderTasks() {
@@ -386,45 +494,65 @@ function renderTasks() {
     return okQuery && okDate && okStatus;
   });
 
+  if (nodes.taskCountLabel) {
+    nodes.taskCountLabel.textContent = `${filtered.length} task${filtered.length === 1 ? '' : 's'}`;
+  }
+
   nodes.taskList.innerHTML = filtered.length
     ? filtered.map((task) => renderTaskCard(task, true)).join('')
-    : `<article class="task-row"><p class="task-title">No tasks found</p><p class="muted">Adjust filters or add a new entry.</p></article>`;
+    : renderEmptyState('search_off', 'No tasks found', 'Try adjusting your filters or add a new entry.');
 }
 
 function renderReports() {
-  const summary = state.summary || buildSummary(state.tasks);
-  nodes.reportCompleted.textContent = String(summary.by_status.completed || 0);
-  nodes.reportProgress.textContent = String(summary.by_status.in_progress || 0);
-  nodes.reportBlocked.textContent = String(summary.by_status.blocked || 0);
-  nodes.reportPlanned.textContent = String(summary.by_status.planned || 0);
+  const periodTasks = filterTasksByRange(state.tasks, state.reportRange);
+  const periodCounts = countByStatus(periodTasks);
+  const { label } = getRangeBounds(state.reportRange);
+
+  nodes.reportCompleted.textContent = String(periodCounts.completed);
+  nodes.reportProgress.textContent = String(periodCounts.in_progress);
+  nodes.reportBlocked.textContent = String(periodCounts.blocked);
+  nodes.reportPlanned.textContent = String(periodCounts.planned);
   nodes.reportSummary.innerHTML = `
-    The ledger currently contains <strong>${summary.totals.total}</strong> tasks.
-    Completion stands at <strong>${summary.totals.completed}</strong>, while
-    <strong>${summary.totals.blocked}</strong> are flagged for attention.
+    For <strong>${escapeText(label.toLowerCase())}</strong>, you logged
+    <strong>${periodTasks.length}</strong> tasks —
+    <strong>${periodCounts.completed}</strong> completed,
+    <strong>${periodCounts.in_progress}</strong> in progress, and
+    <strong>${periodCounts.blocked}</strong> blocked.
   `;
-  nodes.reportSummaryShort.textContent = `${summary.totals.total} tasks • ${summary.totals.blocked} blocked`;
-  nodes.analyticsRangeLabel.textContent =
-    state.reportRange === 'daily' ? 'This week' : state.reportRange === 'weekly' ? 'This month' : 'This year';
+  nodes.reportSummaryShort.textContent = `${periodTasks.length} tasks`;
+  nodes.reportPeriodTitle.textContent = `Tasks for ${label.toLowerCase()}`;
+  nodes.reportPeriodCount.textContent = `${periodTasks.length} task${periodTasks.length === 1 ? '' : 's'}`;
+  nodes.reportTaskList.innerHTML = periodTasks.length
+    ? periodTasks.map((task) => renderTaskCard(task, false)).join('')
+    : renderEmptyState('event_busy', 'Nothing in this period', 'Switch the range above or log a new task.');
   renderChart(nodes.reportChart, chartSeries(state.tasks, state.reportRange));
 }
 
 function renderDashboard() {
-  const summary = state.summary || buildSummary(state.tasks);
+  const summary = normalizeSummary(state.summary, state.tasks);
+  const weekCounts = countByStatus(filterTasksByRange(state.tasks, 'weekly'));
+
   nodes.kpiTotal.textContent = String(summary.totals.weekly_total);
-  nodes.kpiDelta.textContent = `${summary.totals.delta >= 0 ? '+' : ''}${summary.totals.delta}% vs last week`;
-  nodes.kpiCompleted.textContent = String(summary.totals.completed);
-  nodes.kpiFlagged.textContent = String(summary.totals.blocked);
+  const delta = summary.totals.delta;
+  nodes.kpiDelta.textContent = `${delta >= 0 ? '+' : ''}${delta}% vs last week`;
+  nodes.kpiDelta.className = `delta ${delta > 0 ? 'positive' : delta < 0 ? 'negative' : 'neutral'}`;
+  nodes.kpiCompleted.textContent = String(weekCounts.completed);
+  nodes.kpiProgress.textContent = String(weekCounts.in_progress);
+  nodes.kpiBlocked.textContent = String(weekCounts.blocked);
+  nodes.analyticsRangeLabel.textContent =
+    state.analyticsRange === 'daily' ? 'Today' : state.analyticsRange === 'weekly' ? 'This week' : 'This month';
   renderChart(nodes.analyticsChart, chartSeries(state.tasks, state.analyticsRange));
-  renderRecent(state.tasks.slice(0, 5));
+  renderRecent(state.tasks);
 }
 
 function renderHistory() {
   if (!state.history.length) {
-    nodes.historyList.innerHTML = `<article class="timeline-item"><p class="task-title">No audit trail yet</p><p class="muted">Edits and deletions will appear here after the first sync.</p></article>`;
+    nodes.historyList.innerHTML = renderEmptyState('history', 'No history yet', 'Changes will appear here after you save or edit tasks.');
     return;
   }
 
-  nodes.historyList.innerHTML = state.history
+  const sorted = [...state.history].sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
+  nodes.historyList.innerHTML = sorted
     .map((entry) => `
       <article class="timeline-item ${statusClass(entry.status)}" data-status="${escapeText(entry.status || '')}">
         <div class="task-top">
@@ -438,20 +566,36 @@ function renderHistory() {
           <span class="status-pill ${statusClass(entry.status)}">${escapeText(entry.action)}</span>
         </div>
         <p class="muted">${escapeText(entry.details || 'Audit entry')}</p>
-        <p class="muted"><strong>Actor:</strong> ${escapeText(entry.actor)}</p>
       </article>
     `)
     .join('');
 }
 
 function renderSettings() {
-  const apiUrl = getApiUrl();
   const sheetUrl = getSheetUrl();
-  const connectionText = apiUrl
-    ? 'Apps Script URL loaded from deploy config'
-    : 'Apps Script URL not set';
-  if (nodes.connectionPill) nodes.connectionPill.textContent = connectionText;
   if (nodes.openSheetLink) nodes.openSheetLink.disabled = !sheetUrl;
+}
+
+function updateFormMode() {
+  const editing = Boolean(state.editingId);
+  if (nodes.formModeLabel) nodes.formModeLabel.textContent = editing ? 'Editing' : 'New entry';
+  if (nodes.formTitle) nodes.formTitle.textContent = editing ? 'Update task' : 'Log a task';
+  if (nodes.saveButtonLabel) nodes.saveButtonLabel.textContent = editing ? 'Update task' : 'Save task';
+}
+
+function setTasksTab(tab) {
+  state.tasksTab = tab;
+  document.querySelectorAll('[data-tasks-tab]').forEach((button) => {
+    if (!button.classList.contains('segment') && !button.classList.contains('mobile-link')) return;
+    const isActive = button.dataset.tasksTab === tab;
+    if (button.classList.contains('segment')) {
+      button.classList.toggle('active', isActive);
+      button.setAttribute('aria-selected', String(isActive));
+    }
+  });
+  if (nodes.tasksEntryPanel) nodes.tasksEntryPanel.classList.toggle('active', tab === 'entry');
+  if (nodes.tasksListPanel) nodes.tasksListPanel.classList.toggle('active', tab === 'list');
+  if (tab === 'list') renderTasks();
 }
 
 function updatePageHeader(viewId) {
@@ -462,34 +606,32 @@ function updatePageHeader(viewId) {
 
 function setActiveNav(viewId) {
   document.querySelectorAll('[data-view-target]').forEach((button) => {
+    if (!button.dataset.viewTarget) return;
+    const isViewNav = button.classList.contains('rail-link') || button.classList.contains('mobile-link');
+    if (!isViewNav) return;
     button.classList.toggle('active', button.dataset.viewTarget === viewId);
   });
 }
 
-function showView(viewId) {
+function showView(viewId, options = {}) {
   state.view = viewId;
   document.querySelectorAll('.view').forEach((view) => {
     view.classList.toggle('active', view.id === viewId);
   });
   setActiveNav(viewId);
   updatePageHeader(viewId);
+  if (viewId === 'tasks-view') {
+    setTasksTab(options.tasksTab || state.tasksTab || 'entry');
+    updateFormMode();
+    if ((options.tasksTab || state.tasksTab) === 'list') renderTasks();
+  }
   if (viewId === 'dashboard-view') renderDashboard();
-  if (viewId === 'tasks-view') renderTasks();
   if (viewId === 'reports-view') renderReports();
   if (viewId === 'history-view') renderHistory();
   if (viewId === 'settings-view') renderSettings();
-  closeRail();
-}
-
-function closeRail() {
-  document.body.classList.remove('rail-open');
-  if (nodes.railScrim) nodes.railScrim.hidden = true;
-}
-
-function toggleRail(force) {
-  const shouldOpen = typeof force === 'boolean' ? force : !document.body.classList.contains('rail-open');
-  document.body.classList.toggle('rail-open', shouldOpen);
-  if (nodes.railScrim) nodes.railScrim.hidden = !shouldOpen;
+  if (viewId === 'tasks-view' && options.tasksTab === 'entry') {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 }
 
 function clearForm() {
@@ -500,6 +642,7 @@ function clearForm() {
   nodes.taskDetails.value = '';
   nodes.taskStatus.value = 'Planned';
   nodes.taskComments.value = '';
+  updateFormMode();
 }
 
 function fillForm(task) {
@@ -510,6 +653,7 @@ function fillForm(task) {
   nodes.taskDetails.value = task.details;
   nodes.taskStatus.value = task.status;
   nodes.taskComments.value = task.comments;
+  updateFormMode();
 }
 
 function collectFormData() {
@@ -523,24 +667,83 @@ function collectFormData() {
   };
 
   if (!payload.date) throw new Error('Date is required.');
-  if (!payload.task) throw new Error('Task is required.');
+  if (!payload.task) throw new Error('Task name is required.');
   if (!STATUS_OPTIONS.includes(payload.status)) throw new Error('Choose a valid status.');
   return normalizeTask(payload);
 }
 
+function setSyncLoading(loading) {
+  if (!nodes.syncButton) return;
+  nodes.syncButton.disabled = loading;
+  nodes.syncButton.classList.toggle('sync-button-loading', loading);
+  const label = nodes.syncButton.querySelector('.sync-label');
+  if (label) label.textContent = loading ? 'Syncing...' : 'Sync';
+}
+
+function openDeleteModal(task) {
+  state.pendingDeleteId = task.id;
+  if (nodes.deleteModalBody) {
+    nodes.deleteModalBody.textContent = `"${task.task}" will be permanently removed from your sheet.`;
+  }
+  if (nodes.deleteModal) nodes.deleteModal.hidden = false;
+}
+
+function closeDeleteModal() {
+  state.pendingDeleteId = null;
+  if (nodes.deleteModal) nodes.deleteModal.hidden = true;
+}
+
+async function confirmDelete() {
+  const id = state.pendingDeleteId;
+  if (!id || isBusy) return;
+  const task = state.tasks.find((item) => item.id === id);
+  if (!task) {
+    closeDeleteModal();
+    return;
+  }
+
+  isBusy = true;
+  if (nodes.deleteConfirm) nodes.deleteConfirm.disabled = true;
+  try {
+    const history = await deleteRemoteTask(id);
+    state.tasks = state.tasks.filter((item) => item.id !== id);
+    state.history = [...history, ...state.history].slice(0, 100);
+    state.summary = normalizeSummary(null, state.tasks);
+    closeDeleteModal();
+    renderTasks();
+    renderDashboard();
+    renderReports();
+    renderHistory();
+    setToast('Task deleted');
+  } catch (error) {
+    setToast(error.message || 'Could not delete task');
+  } finally {
+    isBusy = false;
+    if (nodes.deleteConfirm) nodes.deleteConfirm.disabled = false;
+  }
+}
+
 async function refreshData() {
-  const data = await fetchBootstrap();
-  state.tasks = Array.isArray(data.tasks) ? data.tasks.map(normalizeTask).sort((a, b) => b.date.localeCompare(a.date) || b.updatedAt.localeCompare(a.updatedAt)) : [];
-  state.history = Array.isArray(data.history) ? data.history.map(normalizeHistory) : [];
-  state.summary = data.summary || buildSummary(state.tasks);
-  setConnectionLabel('Synced');
-  showView(state.view);
+  setSyncLoading(true);
+  setConnectionState('connecting');
+  try {
+    const data = await fetchBootstrap();
+    state.tasks = Array.isArray(data.tasks)
+      ? data.tasks.map(normalizeTask).sort((a, b) => b.date.localeCompare(a.date) || b.updatedAt.localeCompare(a.updatedAt))
+      : [];
+    state.history = Array.isArray(data.history) ? data.history.map(normalizeHistory) : [];
+    state.summary = normalizeSummary(data.summary, state.tasks);
+    setConnectionState('synced');
+    showView(state.view);
+  } finally {
+    setSyncLoading(false);
+  }
 }
 
 function openSheet() {
   const target = getSheetUrl();
   if (!target) {
-    setToast('Sheet URL not configured in deploy config.');
+    setToast('Spreadsheet link not available.');
     return;
   }
   window.open(target, '_blank', 'noopener,noreferrer');
@@ -548,7 +751,16 @@ function openSheet() {
 
 function bindNav() {
   document.querySelectorAll('[data-view-target]').forEach((button) => {
-    button.addEventListener('click', () => showView(button.dataset.viewTarget));
+    button.addEventListener('click', () => {
+      const tasksTab = button.dataset.tasksTab || (button.id === 'fab-add' || button.id === 'quick-add-button' ? 'entry' : undefined);
+      showView(button.dataset.viewTarget, { tasksTab });
+    });
+  });
+}
+
+function bindTasksTabs() {
+  document.querySelectorAll('.segment[data-tasks-tab]').forEach((button) => {
+    button.addEventListener('click', () => setTasksTab(button.dataset.tasksTab));
   });
 }
 
@@ -556,7 +768,11 @@ function bindRanges() {
   document.querySelectorAll('[data-analytics-range]').forEach((button) => {
     button.addEventListener('click', () => {
       state.analyticsRange = button.dataset.analyticsRange;
-      document.querySelectorAll('[data-analytics-range]').forEach((btn) => btn.classList.toggle('active', btn === button));
+      document.querySelectorAll('[data-analytics-range]').forEach((btn) => {
+        const active = btn === button;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-selected', String(active));
+      });
       renderDashboard();
     });
   });
@@ -564,7 +780,11 @@ function bindRanges() {
   document.querySelectorAll('[data-report-range]').forEach((button) => {
     button.addEventListener('click', () => {
       state.reportRange = button.dataset.reportRange;
-      document.querySelectorAll('[data-report-range]').forEach((btn) => btn.classList.toggle('active', btn === button));
+      document.querySelectorAll('[data-report-range]').forEach((btn) => {
+        const active = btn === button;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-selected', String(active));
+      });
       renderReports();
     });
   });
@@ -572,10 +792,15 @@ function bindRanges() {
 
 function bindForms() {
   nodes.taskDate.value = todayISO();
+  updateFormMode();
 
   nodes.taskForm.addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (isBusy) return;
     const wasEditing = Boolean(state.editingId);
+    isBusy = true;
+    nodes.saveButton.disabled = true;
+    if (nodes.saveButtonLabel) nodes.saveButtonLabel.textContent = 'Saving...';
     try {
       const task = collectFormData();
       const result = await saveRemoteTask(task);
@@ -587,18 +812,23 @@ function bindForms() {
       }
       state.history = [...result.history, ...state.history].slice(0, 100);
       state.tasks.sort((a, b) => b.date.localeCompare(a.date) || b.updatedAt.localeCompare(a.updatedAt));
-      state.summary = buildSummary(state.tasks);
+      state.summary = normalizeSummary(result.summary, state.tasks);
       clearForm();
+      setConnectionState('synced');
       setToast(wasEditing ? 'Task updated' : 'Task saved');
-      showView('tasks-view');
+      showView('tasks-view', { tasksTab: 'list' });
     } catch (error) {
-      setToast(error.message || 'Unable to save task');
+      setToast(error.message || 'Could not save task');
+    } finally {
+      isBusy = false;
+      nodes.saveButton.disabled = false;
+      updateFormMode();
     }
   });
 
   nodes.resetButton.addEventListener('click', clearForm);
 
-  nodes.taskList.addEventListener('click', async (event) => {
+  nodes.taskList.addEventListener('click', (event) => {
     const button = event.target.closest('button[data-action]');
     if (!button) return;
     const task = state.tasks.find((item) => item.id === button.dataset.id);
@@ -606,32 +836,30 @@ function bindForms() {
 
     if (button.dataset.action === 'edit') {
       fillForm(task);
-      showView('tasks-view');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      showView('tasks-view', { tasksTab: 'entry' });
       return;
     }
 
     if (button.dataset.action === 'delete') {
-      if (!window.confirm(`Delete "${task.task}"?`)) return;
-      try {
-        const history = await deleteRemoteTask(task.id);
-        state.tasks = state.tasks.filter((item) => item.id !== task.id);
-        state.history = [...history, ...state.history].slice(0, 100);
-        state.summary = buildSummary(state.tasks);
-        renderTasks();
-        renderDashboard();
-        renderReports();
-        renderHistory();
-        setToast('Task deleted');
-      } catch (error) {
-        setToast(error.message || 'Unable to delete task');
-      }
+      openDeleteModal(task);
     }
   });
+}
 
-  nodes.dashboardRecentList.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-view-target]');
-    if (button) showView(button.dataset.viewTarget);
+function bindModal() {
+  if (nodes.deleteCancel) {
+    nodes.deleteCancel.addEventListener('click', closeDeleteModal);
+  }
+  if (nodes.deleteConfirm) {
+    nodes.deleteConfirm.addEventListener('click', confirmDelete);
+  }
+  document.querySelectorAll('[data-dismiss="modal"]').forEach((el) => {
+    el.addEventListener('click', closeDeleteModal);
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && nodes.deleteModal && !nodes.deleteModal.hidden) {
+      closeDeleteModal();
+    }
   });
 }
 
@@ -643,41 +871,14 @@ function bindToolbar() {
   nodes.syncButton.addEventListener('click', async () => {
     try {
       await refreshData();
-      setToast('Synced');
+      setToast('Synced with sheet');
     } catch (error) {
-      setConnectionLabel('Sync failed');
+      setConnectionState('error');
       setToast(error.message || 'Sync failed');
     }
   });
 
   nodes.openSheetButton.addEventListener('click', openSheet);
-
-  if (nodes.mobileMenuButton) {
-    nodes.mobileMenuButton.addEventListener('click', () => {
-      toggleRail();
-    });
-  }
-
-  if (nodes.closeMenuButton) {
-    nodes.closeMenuButton.addEventListener('click', closeRail);
-  }
-
-  if (nodes.railScrim) {
-    nodes.railScrim.addEventListener('click', closeRail);
-  }
-
-  document.addEventListener('pointerdown', (event) => {
-    if (!document.body.classList.contains('rail-open')) return;
-    const rail = document.querySelector('.side-rail');
-    const menuButton = nodes.mobileMenuButton;
-    const target = event.target;
-    if (rail?.contains(target) || menuButton?.contains(target)) return;
-    closeRail();
-  });
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeRail();
-  });
 }
 
 function bindFilters() {
@@ -687,41 +888,33 @@ function bindFilters() {
   });
 }
 
-function bootConnectionState() {
-  if (!getApiUrl()) {
-    setConnectionLabel('Waiting for deploy config');
-  } else {
-    setConnectionLabel('Connecting...');
-  }
-}
-
 async function bootstrap() {
   await loadRuntimeConfig();
   bindNav();
+  bindTasksTabs();
   bindRanges();
   bindForms();
+  bindModal();
   bindSettings();
   bindToolbar();
   bindFilters();
   renderSettings();
   updatePageHeader(state.view);
-  bootConnectionState();
+  setConnectionState('checking');
   clearForm();
-  if (nodes.railScrim) nodes.railScrim.hidden = true;
 
   if (getApiUrl()) {
     try {
       await refreshData();
-      setConnectionLabel('Synced');
     } catch (error) {
-      setConnectionLabel('Sheet unavailable');
-      setToast(error.message || 'Could not load the sheet');
+      setConnectionState('error');
+      setToast(error.message || 'Could not connect to your sheet');
       showView('settings-view');
     }
   } else {
+    setConnectionState('waiting');
     showView('settings-view');
   }
 }
-
 
 bootstrap();
