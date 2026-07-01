@@ -286,7 +286,7 @@
                 <div class="panel-subcard">
                   <p class="eyebrow">Backend only</p>
                   <p class="muted">
-                    Connection details live in <strong>config.js</strong>. Your wife does not need to enter anything on her device.
+                    Connection details are injected during GitHub Pages deploy. Your wife does not need to enter anything on her device.
                   </p>
                   <div class="form-actions">
                     <button id="open-sheet-link" class="secondary-button" type="button">Open sheet</button>
@@ -299,7 +299,7 @@
                 <ul class="checklist">
                   <li>Task records are read from and written to Google Sheets only.</li>
                   <li>No task data or connection settings are stored in the browser.</li>
-                  <li>Edit <strong>config.js</strong> once, then redeploy GitHub Pages.</li>
+                  <li>Set <code>APPS_SCRIPT_URL</code> and <code>SHEET_URL</code> in GitHub Actions secrets, then redeploy Pages.</li>
                   <li>The Apps Script web app automatically creates the required sheets.</li>
                 </ul>
               </div>
@@ -328,7 +328,6 @@
     </nav>
 
     <div id="toast" class="toast" hidden></div>
-    <script src="./config.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

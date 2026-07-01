@@ -1,4 +1,8 @@
 const DEFAULT_CONFIG = window.WORKTRACK_CONFIG || {};
+const CONFIG_FILES = {
+  apiUrl: './apps-script-url.txt',
+  sheetUrl: './sheet-url.txt',
+};
 const STATUS_OPTIONS = ['Planned', 'In Progress', 'Blocked', 'Done'];
 const VIEW_LABELS = {
   'dashboard-view': { kicker: 'Dashboard', title: 'Overview' },
@@ -10,6 +14,8 @@ const VIEW_LABELS = {
 
 const state = {
   config: { ...DEFAULT_CONFIG },
+  apiUrl: '',
+  sheetUrl: '',
   view: 'dashboard-view',
   analyticsRange: 'weekly',
   reportRange: 'weekly',
@@ -106,12 +112,32 @@ function formatRelativeWeekLabel(offset = 0) {
   return monday;
 }
 
+async function loadTextFile(path) {
+  try {
+    const res = await fetch(path, { cache: 'no-store' });
+    if (!res.ok) return '';
+    return (await res.text()).trim();
+  } catch (error) {
+    return '';
+  }
+}
+
+async function loadRuntimeConfig() {
+  const [fileApiUrl, fileSheetUrl] = await Promise.all([
+    loadTextFile(CONFIG_FILES.apiUrl),
+    loadTextFile(CONFIG_FILES.sheetUrl),
+  ]);
+
+  state.apiUrl = fileApiUrl || String(state.config.apiUrl || '').trim();
+  state.sheetUrl = fileSheetUrl || String(state.config.sheetUrl || '').trim();
+}
+
 function getApiUrl() {
-  return String(state.config.apiUrl || '').trim();
+  return String(state.apiUrl || '').trim();
 }
 
 function getSheetUrl() {
-  return String(state.config.sheetUrl || '').trim();
+  return String(state.sheetUrl || '').trim();
 }
 
 function setToast(message, timeout = 2400) {
@@ -163,7 +189,7 @@ function statusClass(status) {
 function requestEndpoint(action, method = 'GET', payload = null) {
   const apiUrl = getApiUrl();
   if (!apiUrl) {
-    throw new Error('Paste the Apps Script web app URL in Settings.');
+    throw new Error('Apps Script URL not configured.');
   }
 
   if (method === 'GET') {
@@ -422,10 +448,10 @@ function renderSettings() {
   const apiUrl = getApiUrl();
   const sheetUrl = getSheetUrl();
   const connectionText = apiUrl
-    ? 'Configured in config.js'
-    : 'Add the Apps Script URL in config.js';
+    ? 'Apps Script URL loaded from deploy config'
+    : 'Apps Script URL not set';
   if (nodes.connectionPill) nodes.connectionPill.textContent = connectionText;
-  if (nodes.openSheetLink) nodes.openSheetLink.disabled = !sheetUrl && !apiUrl;
+  if (nodes.openSheetLink) nodes.openSheetLink.disabled = !sheetUrl;
 }
 
 function updatePageHeader(viewId) {
@@ -512,9 +538,9 @@ async function refreshData() {
 }
 
 function openSheet() {
-  const target = getSheetUrl() || getApiUrl();
+  const target = getSheetUrl();
   if (!target) {
-    setToast('Add the sheet or Apps Script URL first.');
+    setToast('Sheet URL not configured in deploy config.');
     return;
   }
   window.open(target, '_blank', 'noopener,noreferrer');
@@ -663,13 +689,14 @@ function bindFilters() {
 
 function bootConnectionState() {
   if (!getApiUrl()) {
-    setConnectionLabel('Set config.js');
+    setConnectionLabel('Waiting for deploy config');
   } else {
     setConnectionLabel('Connecting...');
   }
 }
 
 async function bootstrap() {
+  await loadRuntimeConfig();
   bindNav();
   bindRanges();
   bindForms();
@@ -695,5 +722,6 @@ async function bootstrap() {
     showView('settings-view');
   }
 }
+
 
 bootstrap();
